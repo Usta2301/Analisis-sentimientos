@@ -27,7 +27,7 @@ def traducir_texto(texto: str, src='es', dest='en') -> str:
     try:
         return translator.translate(texto, src=src, dest=dest).text
     except:
-        return texto  # si falla, devolvemos el original
+        return texto  # fallback sin traducción
 
 def contar_palabras(texto: str) -> dict:
     """Cuenta palabras más frecuentes excluyendo las más comunes."""
@@ -44,17 +44,14 @@ def contar_palabras(texto: str) -> dict:
 
 def detectar_entidades_basico(texto: str) -> list:
     """Detecta palabras que empiezan por mayúscula en medio de la frase."""
-    # Excluimos la primera palabra de cada oración.
     entidades = []
-    # Divide en oraciones para ignorar mayúsculas de inicio.
     oraciones = re.split(r'[.!?]\s*', texto)
     for ora in oraciones:
-        # tomamos todas las mayúsculas que no sean la primera palabra
         partes = ora.strip().split()
         for palabra in partes[1:]:
             if re.match(r'^[A-ZÁÉÍÓÚÑ][a-zñáéíóú]+$', palabra):
                 entidades.append(palabra)
-    return list(dict.fromkeys(entidades))  # eliminamos duplicados
+    return list(dict.fromkeys(entidades))
 
 def procesar_texto(texto: str) -> dict:
     """Traduce, analiza sentimiento y cuenta palabras."""
@@ -68,12 +65,20 @@ def procesar_texto(texto: str) -> dict:
     freq = contar_palabras(texto_en)
     # 4) Entidades (básico)
     entidades = detectar_entidades_basico(texto)
+    # 5) Emoji según sentimiento
+    if sentimiento > 0.05:
+        estado_emoji = "😊 Positivo"
+    elif sentimiento < -0.05:
+        estado_emoji = "😟 Negativo"
+    else:
+        estado_emoji = "😐 Neutral"
     return {
         "texto_traducido": texto_en,
         "sentimiento": sentimiento,
         "subjetividad": subjetividad,
         "frecuencias": freq,
-        "entidades": entidades
+        "entidades": entidades,
+        "estado_emoji": estado_emoji
     }
 
 # ──────────────────────────────
@@ -92,6 +97,8 @@ if st.button("🔎 Analizar texto") and texto.strip():
 
     with col1:
         st.subheader("🔍 Sentimiento y Subjetividad")
+        # Mostrar emoji de estado
+        st.markdown(f"**Estado general del texto:** {resultados['estado_emoji']}")
         st.metric("Sentimiento (−1 a 1)", f"{resultados['sentimiento']:.2f}")
         st.progress((resultados["sentimiento"] + 1) / 2)
         st.metric("Subjetividad (0 a 1)", f"{resultados['subjetividad']:.2f}")
