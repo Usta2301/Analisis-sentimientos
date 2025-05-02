@@ -2,19 +2,19 @@
 
 import streamlit as st
 from textblob import TextBlob
-import nltk
 import re
 from googletrans import Translator
 
 # ──────────────────────────────
-# ✅ Descarga automática de corpus si faltan
+# 🖥️ Configuración de la página
 # ──────────────────────────────
-try:
-    nltk.data.find('tokenizers/punkt')
-    nltk.data.find('taggers/averaged_perceptron_tagger')
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('averaged_perceptron_tagger')
+
+st.set_page_config(
+    page_title="Análisis de Texto",
+    layout="wide",
+    page_icon="📊"
+)
+st.title("📊 Analizador de Texto Simple")
 
 # ──────────────────────────────
 # 🧠 Funciones auxiliares
@@ -22,50 +22,68 @@ except LookupError:
 
 translator = Translator()
 
-def traducir_texto(texto, src='es', dest='en'):
-    """Traduce texto de español a inglés (o entre otros idiomas)."""
+def traducir_texto(texto: str, src='es', dest='en') -> str:
+    """Traduce texto entre idiomas usando Googletrans."""
     try:
         return translator.translate(texto, src=src, dest=dest).text
     except:
-        return texto  # fallback sin traducción
+        return texto  # si falla, devolvemos el original
 
-def contar_palabras(texto):
-    """Cuenta palabras más frecuentes excluyendo 'stop words'."""
-    stop_words = set([
-        "the", "and", "you", "are", "que", "por", "para", "con", "una", "los", "las", "del",
-        "this", "that", "from", "your", "about", "etc", "etc.", "en", "el", "de"
-    ])
-    palabras = re.findall(r'\b\w+\b', texto.lower())
-    palabras_filtradas = [p for p in palabras if p not in stop_words and len(p) > 2]
-    contador = {}
-    for palabra in palabras_filtradas:
-        contador[palabra] = contador.get(palabra, 0) + 1
-    return dict(sorted(contador.items(), key=lambda x: x[1], reverse=True))
+def contar_palabras(texto: str) -> dict:
+    """Cuenta palabras más frecuentes excluyendo las más comunes."""
+    stop_words = {
+        "the","and","you","are","que","por","para","con","una","los","las","del",
+        "this","that","from","your","about","en","el","de"
+    }
+    tokens = re.findall(r'\b\w+\b', texto.lower())
+    filtrados = [t for t in tokens if t not in stop_words and len(t) > 2]
+    freq = {}
+    for w in filtrados:
+        freq[w] = freq.get(w, 0) + 1
+    return dict(sorted(freq.items(), key=lambda x: x[1], reverse=True))
 
-def procesar_texto(texto):
-    """Traduce, analiza sentimiento, entidades y palabras clave."""
-    texto_ingles = traducir_texto(texto)
-    blob = TextBlob(texto_ingles)
+def detectar_entidades_basico(texto: str) -> list:
+    """Detecta palabras que empiezan por mayúscula en medio de la frase."""
+    # Excluimos la primera palabra de cada oración.
+    entidades = []
+    # Divide en oraciones para ignorar mayúsculas de inicio.
+    oraciones = re.split(r'[.!?]\s*', texto)
+    for ora in oraciones:
+        # tomamos todas las mayúsculas que no sean la primera palabra
+        partes = ora.strip().split()
+        for palabra in partes[1:]:
+            if re.match(r'^[A-ZÁÉÍÓÚÑ][a-zñáéíóú]+$', palabra):
+                entidades.append(palabra)
+    return list(dict.fromkeys(entidades))  # eliminamos duplicados
+
+def procesar_texto(texto: str) -> dict:
+    """Traduce, analiza sentimiento y cuenta palabras."""
+    # 1) Traducción
+    texto_en = traducir_texto(texto)
+    blob = TextBlob(texto_en)
+    # 2) Sentimiento y subjetividad
     sentimiento = blob.sentiment.polarity
     subjetividad = blob.sentiment.subjectivity
-    contador = contar_palabras(texto_ingles)
-    entidades = blob.noun_phrases
+    # 3) Frecuencia de palabras
+    freq = contar_palabras(texto_en)
+    # 4) Entidades (básico)
+    entidades = detectar_entidades_basico(texto)
     return {
-        "texto_traducido": texto_ingles,
+        "texto_traducido": texto_en,
         "sentimiento": sentimiento,
         "subjetividad": subjetividad,
-        "contador": contador,
+        "frecuencias": freq,
         "entidades": entidades
     }
 
 # ──────────────────────────────
-# 🖥️ Interfaz con Streamlit
+# 🖥️ Interfaz
 # ──────────────────────────────
 
-st.set_page_config(page_title="Análisis de Texto", layout="wide")
-st.title("📊 Análisis de Texto con IA")
-
-texto = st.text_area("✍️ Ingresa tu texto en español para analizar:", height=200)
+texto = st.text_area(
+    "✍️ Ingresa tu texto en español para analizar:",
+    height=200
+)
 
 if st.button("🔎 Analizar texto") and texto.strip():
     resultados = procesar_texto(texto)
@@ -73,26 +91,25 @@ if st.button("🔎 Analizar texto") and texto.strip():
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("🔍 Análisis de Sentimiento")
-        st.metric("Sentimiento (de -1 a 1)", f"{resultados['sentimiento']:.2f}")
-        st.progress((resultados['sentimiento'] + 1) / 2)
+        st.subheader("🔍 Sentimiento y Subjetividad")
+        st.metric("Sentimiento (−1 a 1)", f"{resultados['sentimiento']:.2f}")
+        st.progress((resultados["sentimiento"] + 1) / 2)
+        st.metric("Subjetividad (0 a 1)", f"{resultados['subjetividad']:.2f}")
+        st.progress(resultados["subjetividad"])
 
-        st.metric("Subjetividad (de 0 a 1)", f"{resultados['subjetividad']:.2f}")
-        st.progress(resultados['subjetividad'])
-
-        st.subheader("📌 Entidades Nombradas (Noun Phrases)")
-        if resultados['entidades']:
-            for ent in resultados['entidades'][:10]:
+        st.subheader("📌 Entidades Detectadas")
+        if resultados["entidades"]:
+            for ent in resultados["entidades"]:
                 st.write(f"- {ent}")
         else:
-            st.write("No se encontraron entidades.")
+            st.write("No se detectaron entidades.")
 
     with col2:
         st.subheader("📊 Palabras Más Frecuentes")
-        if resultados['contador']:
-            st.bar_chart(resultados['contador'])
+        if resultados["frecuencias"]:
+            st.bar_chart(resultados["frecuencias"])
         else:
             st.write("No hay suficientes palabras significativas.")
 
-        st.subheader("🌐 Traducción del Texto")
-        st.text_area("Texto traducido al inglés", resultados["texto_traducido"], height=200)
+        st.subheader("🌐 Traducción al Inglés")
+        st.text_area("Texto traducido", resultados["texto_traducido"], height=200)
