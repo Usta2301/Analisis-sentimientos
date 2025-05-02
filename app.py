@@ -8,32 +8,42 @@ from googletrans import Translator
 # 🖥️ Configuración de la página
 # ──────────────────────────────
 st.set_page_config(
-    page_title="Análisis de Sentimiento Emoji",
+    page_title="Analizador Emoji de Sentimiento",
     layout="centered",
     page_icon="😊"
 )
 st.title("😊😐😟 Sentiment Emoji Analyzer")
 
 # ──────────────────────────────
-# 🧠 Función de análisis de sentimiento
+# 🌐 Inicializa traductor
+# ──────────────────────────────
+translator = Translator()
+
+# ──────────────────────────────
+# 🧠 Función de análisis de sentimiento con traducción
 # ──────────────────────────────
 def analizar_sentimiento(texto: str) -> float:
-    blob = TextBlob(texto)
+    try:
+        # Traduce al inglés para mejorar el análisis
+        texto_en = translator.translate(texto, src='es', dest='en').text
+    except:
+        texto_en = texto  # si falla la traducción, usa original
+    blob = TextBlob(texto_en)
     return blob.sentiment.polarity
 
 # ──────────────────────────────
-# 🎨 Mapas de emoji animados
+# 🎨 Mapa de emojis animados
 # ──────────────────────────────
 EMOJI_GIFS = {
-    "positive": "https://media.giphy.com/media/111ebonMs90YLu/giphy.gif",  # risa feliz
-    "neutral":  "https://media.giphy.com/media/l0MYEqEzwMWFCg8rm/giphy.gif",  # emoji pensativo
-    "negative": "https://media.giphy.com/media/9Y5BbDSkSTiY8/giphy.gif"   # carita triste
+    "positive": "https://media.giphy.com/media/111ebonMs90YLu/giphy.gif",
+    "neutral":  "https://media.giphy.com/media/l0MYEqEzwMWFCg8rm/giphy.gif",
+    "negative": "https://media.giphy.com/media/9Y5BbDSkSTiY8/giphy.gif"
 }
 
 # ──────────────────────────────
 # 🖥️ Interfaz
 # ──────────────────────────────
-st.write("Escribe una frase y presiona el botón para ver cómo se siente (¡en emojis animados!)")
+st.write("Escribe una frase en español y presiona el botón para ver cómo se siente (¡con emoji animado!)")
 
 frase = st.text_input("✍️ Tu frase aquí:")
 
